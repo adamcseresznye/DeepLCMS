@@ -1,13 +1,16 @@
 import glob
-import multiprocessing
 import os
-import time
+import shutil
 
 import matplotlib.pylab as plt
 import numpy as np
+import pandas as pd
+import pyopenms
 from matplotlib import colors
+from matplotlib import pyplot as plt
 from pyopenms import *
 from scipy import ndimage
+from skimage import exposure, filters, io
 
 
 def plot_spectra_2D_overview(file_location, gamma=0.5, num_colors=256, filter_size=2):
@@ -78,30 +81,3 @@ def plot_spectra_2D_overview(file_location, gamma=0.5, num_colors=256, filter_si
     basename = os.path.splitext(file_location)[0]
 
     plt.savefig(f"{basename}.jpeg", bbox_inches="tight", pad_inches=0, dpi=300)
-
-
-dir_path = os.getcwd()
-
-files_to_process = []
-extension = "*.mzML"
-# Walk through the directory and its subdirectories
-for root, dirs, files in os.walk(dir_path):
-    # Use glob to find files with the desired extension
-    files_with_extension = glob.glob(os.path.join(root, extension))
-    for file_path in files_with_extension:
-        # print(file_path)
-
-        filename = os.path.basename(file_path)
-        basename = os.path.splitext(filename)[0]
-        files_to_process.append(filename)
-
-if __name__ == "__main__":
-    start_time = time.time()
-
-    results = None
-    with multiprocessing.Pool(processes=11) as pool:
-        pool.map(plot_spectra_2D_overview, files_to_process)
-    pool.close()
-
-    end_time = time.time()
-    print(end_time - start_time)
