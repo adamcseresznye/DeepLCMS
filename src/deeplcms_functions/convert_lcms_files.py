@@ -1,7 +1,8 @@
 import os
+import shutil
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Tuple, Union
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -9,9 +10,10 @@ import pandas as pd
 import pyopenms as oms
 from matplotlib import pyplot as plt
 from scipy import ndimage
+from sklearn import model_selection
 from tqdm import tqdm
 
-from deeplcms_functions import convert_lcms_files, inspect_database, utils
+from deeplcms_functions import inspect_database, utils
 
 
 def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> None:
@@ -227,7 +229,7 @@ def plot_2D_spectra_slices(
     os.chdir(original_cwd)
 
 
-def create_train_test_directories(
+def create_train_val_test_directories(
     study_name: str, path: Union[str, Path], group_1: str, group_2: str
 ) -> None:
     """
@@ -254,11 +256,129 @@ def create_train_test_directories(
         path = Path(path)
 
     study_path = path.joinpath(study_name)
-    parent_folders = ["train", "val"]
+    parent_folders = ["train", "val", "test"]
     daughter_folders = [group_1, group_2]
 
     for parent in parent_folders:
         for daughter in daughter_folders:
             appended_path = study_path.joinpath(parent).joinpath(daughter)
             print(appended_path)
-            appended_path.mkdir(parents=True, exist_ok=True)
+            appended_path.mkdir(parents=True, exist_ok=False)
+
+
+def get_train_val_test_split(
+    path: Union[str, Path],
+    test_portion: float,
+    val_portion: float,
+    random_state: int = utils.Configuration.seed,
+) -> pd.DataFrame:
+    """
+    Split the data into training, validation, and test sets.
+
+    Args:
+        path (str or Path): The path to the dataset list containing what sample belongs to what group in Parquet format.
+        test_portion (float): The proportion of the data to include in the test split.
+        val_portion (float): The proportion of the remaining data to include in the validation split.
+        random_state (int, optional): Seed for the random number generator. Defaults to utils.Configuration.seed.
+
+    Returns:
+        pd.DataFrame: A DataFrame with a 'split' column indicating whether each sample is in the training, validation, or test set.
+
+    Example:
+        To split a dataset at "/path/to/dataset.parquet" into training, validation, and test sets:
+        >>> split_df = get_train_val_test_split("/path/to/dataset.parquet", 0.2, 0.1)
+    """
+    if isinstance(path, str):
+        path = Path(path)
+
+    file = pd.read_parquet(path)
+
+    # Check that the sum of test and validation portions does not exceed 1
+    assert (
+        test_portion + val_portion <= 1
+    ), "Sum of test_portion and val_portion cannot exceed 1"
+
+    # First split to get train and test set
+    remaining, test = model_selection.train_test_split(
+        file,
+        test_size=test_portion,
+        stratify=file.treatment,
+        random_state=random_state,
+    )
+
+    # Second split to get train and val set
+    train, val = model_selection.train_test_split(
+        remaining,
+        test_size=val_portion,
+        stratify=remaining.treatment,
+        random_state=random_state,
+    )
+
+    # Create a DataFrame with a 'split' column
+    train_test_val_split_df = file.assign(
+        split=lambda df: np.select(
+            condlist=[
+                df.sample_name.isin(train.sample_name),
+                df.sample_name.isin(val.sample_name),
+            ],
+            choicelist=["train", "val"],
+            default="test",
+        )
+    )
+
+    return train_test_val_split_df
+
+
+def copy_LCMS_files(
+    df: pd.DataFrame,
+    source_folder: Path,
+    destination_folder: Path,
+    target_col: str,
+) -> None:
+    """
+    Copy LCMS files based on conditions specified in the DataFrame.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing information about samples.
+        source_folder (Path): The folder containing the source LCMS files.
+        destination_folder (Path): The base destination folder.
+        target_col (str): The column in the DataFrame specifying the target treatment.
+
+    Returns:
+        None
+
+    Example:
+        To copy LCMS files based on the 'split' and 'treatment' columns in the DataFrame:
+        >>> df = pd.DataFrame({
+        ...     'sample_name': ['sample1', 'sample2', 'sample3'],
+        ...     'split': ['train', 'val', 'train'],
+        ...     'treatment': ['control', 'experimental', 'control']
+        ... })
+        >>> source_folder = Path("/path/to/source")
+        >>> destination_folder = Path("/path/to/destination")
+        >>> target_col = 'treatment'
+        >>> copy_LCMS_files(df, source_folder, destination_folder, target_col)
+    """
+    # Get a list of all mzML files in the source folder
+    all_mzML_files = list(source_folder.glob("*.mzML"))
+
+    # Iterate over unique values in the 'split' column
+    for group_split in tqdm(df.split.unique()):
+        # Iterate over unique values in the 'treatment' column
+        for group_treatment in df.treatment.unique():
+            # Filter the DataFrame based on split and treatment conditions
+            filtered_sample_list = df.query(
+                "split == @group_split and treatment == @group_treatment"
+            ).sample_name.to_list()
+
+            # Iterate over all mzML files
+            for source_file in all_mzML_files:
+                # Check if the stem of the source file is in the filtered sample list
+                if source_file.stem in filtered_sample_list:
+                    # Copy the source file to the destination folder
+                    shutil.copy(
+                        source_file,
+                        destination_folder.joinpath(group_split).joinpath(
+                            group_treatment
+                        ),
+                    )
