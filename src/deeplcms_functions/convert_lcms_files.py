@@ -1,14 +1,14 @@
+import gc
 import os
 import shutil
 import sys
 from pathlib import Path
 from typing import Tuple, Union
 
-import matplotlib.pylab as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyopenms as oms
-from matplotlib import pyplot as plt
 from scipy import ndimage
 from sklearn import model_selection
 from tqdm import tqdm
@@ -16,7 +16,9 @@ from tqdm import tqdm
 from deeplcms_functions import inspect_database, utils
 
 
-def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> None:
+def plot_2D_spectra_overview(
+    file: Path, save: bool = True, show: bool = False, dpi: int = 300
+) -> None:
     """
     Plot a 2D overview of mass spectrometry spectra.
 
@@ -34,7 +36,7 @@ def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> N
 
     Note:
         - The function uses a 2D histogram of the data to create the heatmap.
-        - Intensity values are normalized and a Gaussian filter is applied for noise reduction.
+        - Intensity values are normalized, and a Gaussian filter is applied for noise reduction.
         - The resulting plot provides an overview of the distribution of mass spectrometry data.
 
     Example:
@@ -46,64 +48,74 @@ def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> N
     original_cwd = Path.cwd()
     os.chdir(file.parent)
 
-    # Load mass spectrometry data from mzML file
-    exp = oms.MSExperiment()
-    loader = oms.MzMLFile()
-    loadopts = loader.getOptions()
-    loadopts.setMSLevels([1])
-    loadopts.setSkipXMLChecks(True)
-    loadopts.setIntensity32Bit(True)
-    loadopts.setIntensityRange(
-        oms.DRange1(oms.DPosition1(5000), oms.DPosition1(sys.maxsize))
-    )
-    loader.setOptions(loadopts)
-    loader.load(file.name, exp)
-    exp.updateRanges()
+    try:
+        # Load mass spectrometry data from mzML file
+        exp = oms.MSExperiment()
+        loader = oms.MzMLFile()
+        loadopts = loader.getOptions()
+        loadopts.setMSLevels([1])
+        loadopts.setSkipXMLChecks(True)
+        loadopts.setIntensity32Bit(True)
+        loadopts.setIntensityRange(
+            oms.DRange1(oms.DPosition1(5000), oms.DPosition1(sys.maxsize))
+        )
+        loader.setOptions(loadopts)
+        loader.load(file.name, exp)
+        exp.updateRanges()
 
-    # Create a DataFrame from the 2D peak data
-    spectraarrs2d = exp.get2DPeakDataLong(
-        exp.getMinRT(), exp.getMaxRT(), exp.getMinMZ(), exp.getMaxMZ()
-    )
-    spectradf = pd.DataFrame(
-        {"RT": spectraarrs2d[0], "mz": spectraarrs2d[1], "inty": spectraarrs2d[2]}
-    )
+        # Create a DataFrame from the 2D peak data
+        spectraarrs2d = exp.get2DPeakDataLong(
+            exp.getMinRT(), exp.getMaxRT(), exp.getMinMZ(), exp.getMaxMZ()
+        )
+        spectradf = pd.DataFrame(
+            {"RT": spectraarrs2d[0], "mz": spectraarrs2d[1], "inty": spectraarrs2d[2]}
+        )
 
-    # Create a 2D histogram of the data
-    hist, xedges, yedges = np.histogram2d(
-        spectradf["RT"],
-        spectradf["mz"],
-        bins=[500, 500],  # Adjust the number of bins as needed
-        weights=spectradf["inty"],
-    )
-    # Normalize intensity values using the highest peak
-    hist = hist / np.max(hist)
+        # Create a 2D histogram of the data
+        hist, xedges, yedges = np.histogram2d(
+            spectradf["RT"],
+            spectradf["mz"],
+            bins=[500, 500],  # Adjust the number of bins as needed
+            weights=spectradf["inty"],
+        )
+        # Normalize intensity values using the highest peak
+        hist = hist / np.max(hist)
 
-    # Apply Gaussian filter for noise reduction
-    filter_size = 2  # Set the size of the Gaussian filter
-    hist = ndimage.gaussian_filter(hist, sigma=filter_size)
+        # Apply Gaussian filter for noise reduction
+        filter_size = 2  # Set the size of the Gaussian filter
+        hist = ndimage.gaussian_filter(hist, sigma=filter_size)
 
-    # Scale the filtered image to the range 0-255
-    hist *= 255.0 / hist.max()
+        # Scale the filtered image to the range 0-255
+        hist *= 255.0 / hist.max()
 
-    # Take the logarithm of the histogram to better visualize large ranges of data
-    hist = np.log1p(hist.T)  # Transpose the histogram for correct orientation
+        # Take the logarithm of the histogram to better visualize large ranges of data
+        hist = np.log1p(hist.T)  # Transpose the histogram for correct orientation
 
-    # Create the colormap
-    cmap = plt.get_cmap("jet")  # Use the 'jet' colormap or choose another
+        # Create the colormap
+        cmap = plt.get_cmap("jet")  # Use the 'jet' colormap or choose another
 
-    # Create the plot
-    plt.figure(figsize=(4, 4))
-    plt.imshow(hist, interpolation="nearest", cmap=cmap, origin="lower")
-    plt.xlabel("RT")
-    plt.ylabel("mz")
-    plt.title("")
-    plt.axis("off")
-    plt.tight_layout()
+        # Create the plot
+        plt.figure(figsize=(4, 4))
+        plt.imshow(hist, interpolation="nearest", cmap=cmap, origin="lower")
+        plt.xlabel("RT")
+        plt.ylabel("mz")
+        plt.title("")
+        plt.axis("off")
+        plt.tight_layout()
 
-    if save:
-        plt.savefig(f"{file.stem}.jpeg", dpi=dpi)
+        if save:
+            plt.savefig(f"{file.stem}.jpeg", dpi=dpi)
+        if show:
+            plt.show()
+    finally:
+        # Close the figure to release resources
+        plt.close()
 
-    os.chdir(original_cwd)
+        # Reset the DataFrame to release its memory
+        del spectradf
+        gc.collect()
+
+        os.chdir(original_cwd)
 
 
 def plot_2D_spectra_slices(
@@ -329,7 +341,7 @@ def get_train_val_test_split(
     return train_test_val_split_df
 
 
-def copy_LCMS_files(
+def copy_LCMS_files_SUPERSEEDED(
     df: pd.DataFrame,
     source_folder: Path,
     destination_folder: Path,
@@ -382,3 +394,64 @@ def copy_LCMS_files(
                             group_treatment
                         ),
                     )
+
+
+def convert_LCMS_files_and_move_images(
+    source_folder: Path,
+    df: pd.DataFrame,
+    destination_folder: Path,
+    target_col: str = "treatment",
+) -> None:
+    """
+    Convert LCMS files to JPEG format based on conditions specified in the DataFrame.
+
+    Args:
+        source_folder (Path): The folder containing the source LCMS files in mzML format.
+        df (pd.DataFrame): The DataFrame containing information about samples.
+        destination_folder (Path): The base destination folder for the converted JPEG files.
+        target_col (str, optional): The column in the DataFrame specifying the target treatment. Defaults to "treatment".
+
+    Returns:
+        None
+
+    Example:
+        To convert LCMS files to JPEG format based on the 'split' and 'treatment' columns in the DataFrame:
+        >>> df = pd.DataFrame({
+        ...     'sample_name': ['sample1', 'sample2', 'sample3'],
+        ...     'split': ['train', 'val', 'train'],
+        ...     'treatment': ['control', 'experimental', 'control']
+        ... })
+        >>> source_folder = Path("/path/to/source")
+        >>> destination_folder = Path("/path/to/destination")
+        >>> target_col = 'treatment'
+        >>> convert_files(source_folder, df, destination_folder, target_col)
+    """
+    # Convert mzML files to JPEG format
+    for file_ in tqdm(list(source_folder.glob("*.mzML"))):
+        plot_2D_spectra_overview(file_, save=True, show=False)
+
+        del file_
+        gc.collect()
+
+    # Get a list of all JPEG files in the source folder
+    all_jpeg_files = list(source_folder.glob("*.jpeg"))
+
+    # Iterate over unique values in the 'split' column
+    for group_split in tqdm(df.split.unique()):
+        # Iterate over unique values in the 'treatment' column
+        for group_treatment in df.treatment.unique():
+            # Filter the DataFrame based on split and treatment conditions
+            filtered_sample_list = df.query(
+                "split == @group_split and treatment == @group_treatment"
+            ).sample_name.to_list()
+
+            # Iterate over all JPEG files
+            for source_file in all_jpeg_files:
+                # Check if the stem of the source file is in the filtered sample list
+                if source_file.stem in filtered_sample_list:
+                    new_file_path = (
+                        destination_folder.joinpath(group_split)
+                        .joinpath(group_treatment)
+                        .joinpath(source_file.name)
+                    )
+                    source_file.rename(new_file_path)
