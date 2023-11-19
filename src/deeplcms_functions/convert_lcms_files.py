@@ -2,6 +2,7 @@ import gc
 import os
 import shutil
 import sys
+import warnings
 from pathlib import Path
 from typing import Tuple, Union
 
@@ -108,12 +109,20 @@ def plot_2D_spectra_overview(
         if show:
             plt.show()
     finally:
-        # Close the figure to release resources
-        plt.close()
+        try:
+            # Close the figure to release resources
+            plt.close()
 
-        # Reset the DataFrame to release its memory
-        del spectradf
-        gc.collect()
+            # Reset the DataFrame to release its memory
+            with warnings.catch_warnings():  # Suppress the Pandas warning about resetting the frame
+                warnings.simplefilter("ignore", category=UserWarning)
+                spectradf = pd.DataFrame()
+
+            # Force garbage collection to release memory
+            gc.collect()
+
+        except UnboundLocalError:
+            pass  # Ignore the error if spectradf is not defined
 
         os.chdir(original_cwd)
 
@@ -314,7 +323,7 @@ def get_train_val_test_split(
     remaining, test = model_selection.train_test_split(
         file,
         test_size=test_portion,
-        stratify=file.treatment,
+        stratify=file.phenotype,
         random_state=random_state,
     )
 
@@ -322,7 +331,7 @@ def get_train_val_test_split(
     train, val = model_selection.train_test_split(
         remaining,
         test_size=val_portion,
-        stratify=remaining.treatment,
+        stratify=remaining.phenotype,
         random_state=random_state,
     )
 
@@ -439,10 +448,10 @@ def convert_LCMS_files_and_move_images(
     # Iterate over unique values in the 'split' column
     for group_split in tqdm(df.split.unique()):
         # Iterate over unique values in the 'treatment' column
-        for group_treatment in df.treatment.unique():
+        for group_treatment in df.phenotype.unique():
             # Filter the DataFrame based on split and treatment conditions
             filtered_sample_list = df.query(
-                "split == @group_split and treatment == @group_treatment"
+                "split == @group_split and phenotype == @group_treatment"
             ).sample_name.to_list()
 
             # Iterate over all JPEG files
