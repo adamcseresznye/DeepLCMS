@@ -32,6 +32,13 @@ repos:
     entry: black
     types: [python]
 
+  - id: jupyter-nb-clear-output
+    name: jupyter-nb-clear-output
+    files: \.ipynb$
+    stages: [commit]
+    language: system
+    entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
+
 
 #- repo: https://github.com/nbQA-dev/nbQA
 #  rev: 1.7.0
