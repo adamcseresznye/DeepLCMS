@@ -11,11 +11,7 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer.trainer import Trainer
 from timm import create_model
 from torchmetrics import Accuracy
-from torchmetrics.classification import (
-    BinaryAUROC,
-    BinaryConfusionMatrix,
-    BinaryF1Score,
-)
+from torchmetrics.classification import BinaryF1Score
 
 
 class MetricsCallback(Callback):
