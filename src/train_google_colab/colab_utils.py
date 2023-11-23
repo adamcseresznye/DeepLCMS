@@ -11,3 +11,4 @@ class Configuration:
     val_dir = img_path / "val"
     test_dir = img_path / "test"
     seed = 2643
+    batch_size = 32

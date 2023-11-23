@@ -73,14 +73,6 @@ def inspect_directory(
         print(f"{pth}: {len(list(pth.glob('*.jpeg')))}")
 
 
-import random
-from pathlib import Path
-
-import matplotlib.pyplot as plt
-import torch
-import torchvision
-
-
 def inspect_training_images(
     train_dir: Path = colab_utils.Configuration.train_dir, save: bool = True
 ):
