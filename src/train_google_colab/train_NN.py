@@ -63,6 +63,13 @@ class PretrainedModelEvaluator(pl.LightningModule):
 
         # Use the provided pretrained model
         self.model = create_model(pretrained_model, pretrained=True, num_classes=1)
+        # Initialize attributes to store performance metrics
+        self.train_loss = []
+        self.train_acc = []
+        self.train_f1 = []
+        self.val_loss = []
+        self.val_acc = []
+        self.val_f1 = []
 
         # Freeze all layers except for the last one
         for param in self.model.parameters():
@@ -153,16 +160,21 @@ class PretrainedModelEvaluator(pl.LightningModule):
         y_pred_logits = self(x).squeeze()
         y_pred = torch.sigmoid(y_pred_logits)
         loss = loss_fn(y_pred, y.float())
-        self.log("train_loss", loss)
 
         # Calculate metrics
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
-        self.log("train_acc", acc)
+        # self.log("train_acc", acc, on_step=False, on_epoch=True,
+        # prog_bar=True, logger=True)
 
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
-        self.log("train_f1", f1)
+        # self.log("train_f1", f1, on_step=False, on_epoch=True,
+        # prog_bar=True, logger=True)
+        # Append metrics to the corresponding attribute
+        self.train_loss.append(loss.item())
+        self.train_acc.append(acc)
+        self.train_f1.append(f1.item())
 
         return loss
 
@@ -183,16 +195,21 @@ class PretrainedModelEvaluator(pl.LightningModule):
         y_pred_logits = self(x).squeeze()
         y_pred = torch.sigmoid(y_pred_logits)
         loss = loss_fn(y_pred, y.float())
-        self.log("val_loss", loss)
 
         # Calculate metrics
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
-        self.log("val_acc", acc)
+        self.log(
+            "val_acc", acc, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
 
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
-        self.log("val_f1", f1)
+        self.log("val_f1", f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        self.val_loss.append(loss.item())
+        self.val_acc.append(acc)
+        self.val_f1.append(f1.item())
 
     def configure_optimizers(self):
         """
@@ -210,6 +227,21 @@ class PretrainedModelEvaluator(pl.LightningModule):
             optimizer, T_max=20, eta_min=0
         )
         return [optimizer], [scheduler]
+
+    # Add methods to access the performance metrics after training
+    def get_train_performance(self):
+        return {
+            "train_loss": self.train_loss,
+            "train_acc": self.train_acc,
+            "train_f1": self.train_f1,
+        }
+
+    def get_val_performance(self):
+        return {
+            "val_loss": self.val_loss,
+            "val_acc": self.val_acc,
+            "val_f1": self.val_f1,
+        }
 
 
 def show_architecture(model: nn.Module):
