@@ -1,13 +1,45 @@
 import os
 import random
 from pathlib import Path
-from typing import Tuple
+from typing import List, Optional, Tuple, Union
 
 import colab_utils
 import matplotlib.pyplot as plt
+import pandas as pd
 import torch
 import torchvision
+from lets_plot import *
 from PIL import Image
+
+LetsPlot.setup_html()
+
+
+def get_experiment_results() -> Optional[pd.DataFrame]:
+    """
+    Search for CSV files in the "/content/logs" directory and its subdirectories,
+    read each CSV file into a Pandas DataFrame, assign an "experiment" column with
+    the stem of the parent directory, and concatenate all these DataFrames.
+
+    Returns:
+        Optional[pd.DataFrame]: A concatenated DataFrame containing the results
+        of the experiments. Returns None if no CSV files are found.
+    """
+    list_of_files: List[pd.DataFrame] = []
+    csv_list: List[Path] = list(Path("/content/logs").glob("**/*.csv"))
+
+    if not csv_list:
+        print("No CSV files found.")
+        return None
+
+    for csv_file in csv_list:
+        file_name: str = csv_file.parent.stem
+        print(f"Reading CSV: {csv_file}")
+
+        read_in_file: pd.DataFrame = pd.read_csv(csv_file).assign(experiment=file_name)
+        list_of_files.append(read_in_file)
+
+    final_file: pd.DataFrame = pd.concat(list_of_files, ignore_index=True)
+    return final_file
 
 
 def open_random_image(
@@ -140,3 +172,85 @@ def get_device() -> str:
         print("Using CPU")
 
     return device
+
+
+def get_experiment_results() -> Optional[pd.DataFrame]:
+    """
+    Search for CSV files in the "/content/logs" directory and its subdirectories,
+    read each CSV file into a Pandas DataFrame, assign an "experiment" column with
+    the stem of the parent directory, and concatenate all these DataFrames.
+
+    Returns:
+        Optional[pd.DataFrame]: A concatenated DataFrame containing the results
+        of the experiments. Returns None if no CSV files are found.
+
+    Example:
+        >>> results_df = get_experiment_results()
+        >>> if results_df is not None:
+        >>>     print(results_df.head())
+    """
+    list_of_files: List[pd.DataFrame] = []
+    csv_list: List[Path] = list(Path("/content/logs").glob("**/*.csv"))
+
+    if not csv_list:
+        print("No CSV files found.")
+        return None
+
+    for csv_file in csv_list:
+        file_name: str = csv_file.parents[1].stem
+        print(f"Reading CSV: {csv_file}")
+
+        read_in_file: pd.DataFrame = pd.read_csv(csv_file).assign(experiment=file_name)
+        list_of_files.append(read_in_file)
+
+    final_file: pd.DataFrame = pd.concat(list_of_files, ignore_index=True).drop(
+        columns="step"
+    )
+    return final_file
+
+
+def plot_experiment_results(df: pd.DataFrame, save=True):
+    """
+    Plot experiment results using Plotnine.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing experiment results.
+        save: Option to save the plot as svg
+
+    Returns:
+        Optional[ggplot]: A Plotnine ggplot object representing the experiment results.
+        Returns None if the input DataFrame is empty.
+
+    Example:
+        >>> results_df = get_experiment_results()
+        >>> if results_df is not None:
+        >>>     plot = plot_experiment_results(results_df)
+        >>>     if plot is not None:
+        >>>         print(plot)
+    """
+    if df.empty:
+        print("DataFrame is empty. Cannot create the plot.")
+        return None
+
+    plot = (
+        df.pipe(lambda df: pd.melt(df, id_vars=["epoch", "experiment"]))
+        .replace({"val_f1": "F1", "val_acc": "Accuracy"})
+        .pipe(
+            lambda df: ggplot(df, aes("epoch", "value", color="experiment"))
+            + geom_line(
+                size=1,
+                tooltips=layer_tooltips()
+                .anchor("top_right")
+                .line("^color")
+                .line("Value|^y"),
+            )
+            + facet_grid(x="variable")
+            + labs(title="Validation Accuracy and F1 values")
+            + theme(plot_title=element_text(size=20, face="bold"))
+            # + ggsize(1000,500)
+        )
+    )
+    if save:
+        ggsave(plot, "experiment_result.svg", path=".", iframe=False)
+
+    return plot
