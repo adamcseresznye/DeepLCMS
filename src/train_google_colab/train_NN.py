@@ -83,7 +83,7 @@ class PretrainedModelEvaluator(pl.LightningModule):
 
         # Adjust the last layer dynamically
         last_layer_input_size = last_linear_layer.in_features
-        self.model.fc = torch.nn.Sequential(
+        self.model.classifier = torch.nn.Sequential(
             torch.nn.Linear(
                 in_features=last_layer_input_size,
                 out_features=int(last_layer_input_size / 4),
@@ -164,13 +164,10 @@ class PretrainedModelEvaluator(pl.LightningModule):
         # Calculate metrics
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
-        # self.log("train_acc", acc, on_step=False, on_epoch=True,
-        # prog_bar=True, logger=True)
 
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
-        # self.log("train_f1", f1, on_step=False, on_epoch=True,
-        # prog_bar=True, logger=True)
+
         # Append metrics to the corresponding attribute
         self.train_loss.append(loss.item())
         self.train_acc.append(acc)
@@ -195,6 +192,9 @@ class PretrainedModelEvaluator(pl.LightningModule):
         y_pred_logits = self(x).squeeze()
         y_pred = torch.sigmoid(y_pred_logits)
         loss = loss_fn(y_pred, y.float())
+        self.log(
+            "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
 
         # Calculate metrics
         y_pred_class = torch.round(y_pred)

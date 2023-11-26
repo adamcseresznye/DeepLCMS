@@ -40,12 +40,12 @@ repos:
     entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
 
 
-#- repo: https://github.com/nbQA-dev/nbQA
-#  rev: 1.7.0
-#  hooks:
-#    - id: nbqa-black
+- repo: https://github.com/nbQA-dev/nbQA
+  rev: 1.7.0
+  hooks:
+    - id: nbqa-black
 #      #additional_dependencies: [jupytext]  # optional, only if you're using Jupytext
 #    - id: nbqa-pyupgrade
 #      args: ["--py37-plus"]
-#    - id: nbqa-isort
-#      args: ["--float-to-top"]
+    - id: nbqa-isort
+      args: ["--float-to-top"]

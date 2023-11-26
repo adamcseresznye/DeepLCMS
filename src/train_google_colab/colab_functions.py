@@ -234,7 +234,7 @@ def plot_experiment_results(df: pd.DataFrame, save=True):
 
     plot = (
         df.pipe(lambda df: pd.melt(df, id_vars=["epoch", "experiment"]))
-        .replace({"val_f1": "F1", "val_acc": "Accuracy"})
+        .replace({"val_f1": "F1", "val_acc": "Accuracy", "val_loss": "Loss"})
         .pipe(
             lambda df: ggplot(df, aes("epoch", "value", color="experiment"))
             + geom_line(
@@ -244,8 +244,8 @@ def plot_experiment_results(df: pd.DataFrame, save=True):
                 .line("^color")
                 .line("Value|^y"),
             )
-            + facet_grid(x="variable")
-            + labs(title="Validation Accuracy and F1 values")
+            + facet_grid(x="variable", scales="free_y")
+            + labs(title="Validation Accuracy, F1 and Loss values")
             + theme(plot_title=element_text(size=20, face="bold"))
             # + ggsize(1000,500)
         )
