@@ -8,44 +8,60 @@ import numpy as np
 import timm
 import torch
 import torchvision
+from timm.data import create_transform, resolve_data_config
+from torchvision.transforms import Compose, RandomRotation
 
 
-def get_timm_transforms(model):
+def get_timm_transforms(
+    model,
+    preprocess_train: Compose = None,
+    color_jitter: float = 0.05,
+    re_prob: float = 0.05,
+) -> tuple[Compose, Compose, Compose]:
     """
     Get preprocessing transforms for training, testing, and validation based on
     the data configuration of the model.
 
     Args:
         model: The timm model.
+        preprocess_train (Compose, optional): Optional existing training transforms.
+        color_jitter (float): Intensity of color jittering. Default is 0.05.
+        re_prob (float): Probability of applying random erasing. Default is 0.05.
 
     Returns:
-        Tuple: A tuple containing the preprocessing transforms for training,
-        validation and testing.
+        Tuple[Compose, Compose, Compose]: A tuple containing the preprocessing transforms
+        for training, validation, and testing.
     """
     # Resolve data configuration for the model
-    data_cfg = timm.data.resolve_data_config(model.model.default_cfg)
+    data_cfg = resolve_data_config(model.model.default_cfg)
 
-    # Create the transform object for training
-    preprocess_train = timm.data.create_transform(
-        **data_cfg,
-        is_training=False,
-        # Add any additional parameters for training transforms if needed
-    )
+    if preprocess_train is None:
+        # Create a list of transforms
+        preprocess_train = create_transform(
+            input_size=data_cfg["input_size"],
+            is_training=True,
+            color_jitter=color_jitter,
+            hflip=0,
+            vflip=0,
+            scale=(1.0, 1.0),  # Remove random zoom effect
+            mean=data_cfg["mean"],
+            std=data_cfg["std"],
+            re_prob=re_prob,
+        )
+        # Add the RandomRotation transform to the list of transforms
+        preprocess_train.transforms.insert(0, RandomRotation(1))
 
     # Create the transform object for testing
-    preprocess_test = timm.data.create_transform(
+    preprocess_test = create_transform(
         **data_cfg,
         is_training=False,
-        # Add any additional parameters for testing transforms if needed
     )
 
     # Create the transform object for validation
-    preprocess_val = timm.data.create_transform(
+    preprocess_val = create_transform(
         **data_cfg,
         is_training=False,
-        # Add any additional parameters for validation transforms if needed
     )
-
     return preprocess_train, preprocess_val, preprocess_test
 
 
