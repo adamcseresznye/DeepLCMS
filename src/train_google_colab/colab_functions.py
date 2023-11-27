@@ -32,7 +32,7 @@ def get_experiment_results() -> Optional[pd.DataFrame]:
         return None
 
     for csv_file in csv_list:
-        file_name: str = csv_file.parent.stem
+        file_name: str = csv_file.parent.name
         print(f"Reading CSV: {csv_file}")
 
         read_in_file: pd.DataFrame = pd.read_csv(csv_file).assign(experiment=file_name)
