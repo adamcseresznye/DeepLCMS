@@ -1,4 +1,5 @@
 import gc
+import io
 import os
 import shutil
 import sys
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyopenms as oms
+from PIL import Image
 from scipy import ndimage
 from sklearn import model_selection
 from tqdm import tqdm
@@ -17,9 +19,7 @@ from tqdm import tqdm
 from deeplcms_functions import inspect_database, utils
 
 
-def plot_2D_spectra_overview(
-    file: Path, save: bool = True, show: bool = False, dpi: int = 300
-) -> None:
+def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> None:
     """
     Plot a 2D overview of mass spectrometry spectra.
 
@@ -96,18 +96,31 @@ def plot_2D_spectra_overview(
         cmap = plt.get_cmap("jet")  # Use the 'jet' colormap or choose another
 
         # Create the plot
-        plt.figure(figsize=(4, 4))
-        plt.imshow(hist, interpolation="nearest", cmap=cmap, origin="lower")
-        plt.xlabel("RT")
-        plt.ylabel("mz")
-        plt.title("")
-        plt.axis("off")
-        plt.tight_layout()
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.imshow(
+            hist, interpolation="nearest", cmap=cmap, origin="lower", aspect="auto"
+        )
+        ax.set_xlabel("RT")
+        ax.set_ylabel("mz")
+        ax.set_title("")
+        ax.axis("off")
+        plt.tight_layout(pad=0)
+
+        # Convert the plot to a PIL Image object
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+        buf.seek(0)
+        PIL_image = Image.open(buf).convert("RGB")
 
         if save:
-            plt.savefig(f"{file.stem}.jpeg", dpi=dpi)
-        if show:
-            plt.show()
+            fig.savefig(
+                f"{file.stem}.jpeg",
+                dpi=dpi,
+                pad_inches=0,
+                bbox_inches="tight",
+                transparent=True,
+            )
+        return PIL_image
     finally:
         try:
             # Close the figure to release resources
