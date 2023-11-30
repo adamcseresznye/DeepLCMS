@@ -424,6 +424,8 @@ def convert_LCMS_files_and_move_images(
     df: pd.DataFrame,
     destination_folder: Path,
     target_col: str = "treatment",
+    nx: int = 500,
+    ny: int = 500,
 ) -> None:
     """
     Convert LCMS files to JPEG format based on conditions specified in the DataFrame.
@@ -433,6 +435,8 @@ def convert_LCMS_files_and_move_images(
         df (pd.DataFrame): The DataFrame containing information about samples.
         destination_folder (Path): The base destination folder for the converted JPEG files.
         target_col (str, optional): The column in the DataFrame specifying the target treatment. Defaults to "treatment".
+        nx (int, optional): Number of bins along the x-axis (RT). Defaults to 500.
+        ny (int, optional): Number of bins along the y-axis (m/z). Defaults to 500.
 
     Returns:
         None
@@ -451,8 +455,7 @@ def convert_LCMS_files_and_move_images(
     """
     # Convert mzML files to JPEG format
     for file_ in tqdm(list(source_folder.glob("*.mzML"))):
-        plot_2D_spectra_overview(file_, save=True, show=False)
-
+        plot_2D_spectra_overview(file_, save=True, nx=nx, ny=ny)
         del file_
         gc.collect()
 
