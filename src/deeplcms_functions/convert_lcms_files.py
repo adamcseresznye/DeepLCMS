@@ -11,39 +11,40 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyopenms as oms
-from PIL import Image
+from PIL import Image, ImageChops
 from scipy import ndimage
 from sklearn import model_selection
 from tqdm import tqdm
 
-from deeplcms_functions import inspect_database, utils
+from deeplcms_functions import utils
 
 
-def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> None:
+def plot_2D_spectra_overview(
+    file: Path, save: bool = True, dpi: int = 300, nx: int = 500, ny: int = 500
+) -> None:
     """
     Plot a 2D overview of mass spectrometry spectra.
 
     This function reads mass spectrometry data from the provided file and generates
-    a 2D heatmap, where the x-axis represents the retention time (RT) and the y-axis
+    a 2D heatmap. The x-axis represents the retention time (RT), and the y-axis
     represents the m/z values.
 
     Args:
-        file (Path): The path to the mass spectrometry data file.
+        file (Path): Path to the mass spectrometry data file.
         save (bool, optional): Whether to save the generated plot. Defaults to True.
         dpi (int, optional): Dots per inch for the saved image. Defaults to 300.
+        nx (int, optional): Number of bins along the x-axis (RT). Defaults to 500.
+        ny (int, optional): Number of bins along the y-axis (m/z). Defaults to 500.
 
     Returns:
-        None
-
-    Note:
-        - The function uses a 2D histogram of the data to create the heatmap.
-        - Intensity values are normalized, and a Gaussian filter is applied for noise reduction.
-        - The resulting plot provides an overview of the distribution of mass spectrometry data.
+        Optional[Image.Image]: If 'save' is False, returns a PIL Image of the generated plot. Otherwise, returns None.
 
     Example:
         To plot a 2D overview of mass spectrometry data:
-        >>> plot_spectra_2D_overview(Path("example_data.mzML"), save=True)
-
+        ```python
+        plot_2D_spectra_overview(Path("example_data.mzML"), save=True)
+        ```
+        This generates a 2D heatmap, saving it as a JPEG file with default settings.
     """
     # temporarily set the working directory to the folder where file is
     original_cwd = Path.cwd()
@@ -76,7 +77,7 @@ def plot_2D_spectra_overview(file: Path, save: bool = True, dpi: int = 300) -> N
         hist, xedges, yedges = np.histogram2d(
             spectradf["RT"],
             spectradf["mz"],
-            bins=[500, 500],  # Adjust the number of bins as needed
+            bins=[nx, ny],  # Adjust the number of bins as needed
             weights=spectradf["inty"],
         )
         # Normalize intensity values using the highest peak
@@ -477,3 +478,77 @@ def convert_LCMS_files_and_move_images(
                         .joinpath(source_file.name)
                     )
                     source_file.rename(new_file_path)
+
+
+def augment_images(
+    location: str,
+    xoffs: int = 5,
+    yoffs: int = 5,
+    n: int = 10,
+    save: bool = False,
+    seed: int = utils.Configuration.seed,
+) -> None:
+    """
+    Apply random offsets to an image.
+
+    Parameters:
+    - location (str): Path to the input image.
+    - xoffs (int): Maximum horizontal offset (positive or negative).
+    - yoffs (int): Maximum vertical offset (positive or negative).
+    - n (int): Number of augmented images to generate.
+    - save (bool): If True, save augmented images.
+    - seed (int): Seed for random number generation.
+
+    Returns:
+    - None
+
+    Usage Example:
+    ```
+    augment_images('path/to/your/image.jpg', xoffs=3, yoffs=6, n=5, save=True)
+    ```
+    This will apply random offsets to the specified image, generating 5 augmented
+    images with a maximum horizontal offset of 3 and a maximum vertical offset of 6.
+    The augmented images will be saved if `save` is set to True.
+    """
+    # Validate inputs
+    if (
+        not isinstance(xoffs, int)
+        or not isinstance(yoffs, int)
+        or not isinstance(n, int)
+        or n <= 0
+    ):
+        raise ValueError(
+            "Invalid input for xoffs, yoffs, or n. They should be positive integers."
+        )
+    np.random.seed(seed)
+    # Convert location to Path object
+    location = Path(location)
+
+    with Image.open(location) as img:
+        # Open the image
+        # img = Image.open(location)
+        width, height = img.size
+
+        # Generate random offsets
+        x_range_random = np.random.randint(-xoffs, xoffs, size=n, dtype=int)
+        y_range_random = np.random.randint(-yoffs, yoffs, size=n, dtype=int)
+
+        for x_offset, y_offset in zip(x_range_random, y_range_random):
+            offset_image = ImageChops.offset(
+                img, xoffset=int(x_offset), yoffset=int(y_offset)
+            )
+            # pad the image with blue background
+            offset_image.paste((0, 1, 127), (0, 0, int(x_offset), height))
+            offset_image.paste((0, 1, 127), (0, 0, width, int(y_offset)))
+
+            if save:
+                # Generate the save path
+                save_path = (
+                    location.parent
+                    / f"{location.stem}_xoffset{x_offset}_yoffset{y_offset}.jpeg"
+                )
+
+                print(f"Augmented image saved: {save_path}")
+                offset_image.save(save_path)
+
+        return None
