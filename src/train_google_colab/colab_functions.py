@@ -6,40 +6,10 @@ from typing import List, Optional, Tuple, Union
 import colab_utils
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 import torch
 import torchvision
-from lets_plot import *
 from PIL import Image
-
-LetsPlot.setup_html()
-
-
-def get_experiment_results() -> Optional[pd.DataFrame]:
-    """
-    Search for CSV files in the "/content/logs" directory and its subdirectories,
-    read each CSV file into a Pandas DataFrame, assign an "experiment" column with
-    the stem of the parent directory, and concatenate all these DataFrames.
-
-    Returns:
-        Optional[pd.DataFrame]: A concatenated DataFrame containing the results
-        of the experiments. Returns None if no CSV files are found.
-    """
-    list_of_files: List[pd.DataFrame] = []
-    csv_list: List[Path] = list(Path("/content/logs").glob("**/*.csv"))
-
-    if not csv_list:
-        print("No CSV files found.")
-        return None
-
-    for csv_file in csv_list:
-        file_name: str = csv_file.parent.name
-        print(f"Reading CSV: {csv_file}")
-
-        read_in_file: pd.DataFrame = pd.read_csv(csv_file).assign(experiment=file_name)
-        list_of_files.append(read_in_file)
-
-    final_file: pd.DataFrame = pd.concat(list_of_files, ignore_index=True)
-    return final_file
 
 
 def open_random_image(
@@ -174,7 +144,7 @@ def get_device() -> str:
     return device
 
 
-def get_experiment_results() -> Optional[pd.DataFrame]:
+def get_experiment_results() -> pd.DataFrame:
     """
     Search for CSV files in the "/content/logs" directory and its subdirectories,
     read each CSV file into a Pandas DataFrame, assign an "experiment" column with
@@ -185,72 +155,114 @@ def get_experiment_results() -> Optional[pd.DataFrame]:
         of the experiments. Returns None if no CSV files are found.
 
     Example:
-        >>> results_df = get_experiment_results()
-        >>> if results_df is not None:
-        >>>     print(results_df.head())
+    ```python
+    import pandas as pd
+
+    # To get experiment results from CSV files in "/content/logs"
+    experiment_results = get_experiment_results()
+
+    if experiment_results is not None:
+        print("Experiment results obtained successfully.")
+        # Further process or analyze the experiment_results DataFrame
+    else:
+        print("No CSV files found. Unable to retrieve experiment results.")
+    ```
     """
-    list_of_files: List[pd.DataFrame] = []
-    csv_list: List[Path] = list(Path("/content/logs").glob("**/*.csv"))
+    list_of_files = []
+    csv_list = list(Path("/content/logs").glob("**/*.csv"))
 
     if not csv_list:
         print("No CSV files found.")
         return None
 
     for csv_file in csv_list:
-        file_name: str = csv_file.parents[1].stem
+        file_name: str = csv_file.parents[1].name
         print(f"Reading CSV: {csv_file}")
 
-        read_in_file: pd.DataFrame = pd.read_csv(csv_file).assign(experiment=file_name)
+        read_in_file = pd.read_csv(csv_file).assign(experiment=file_name)
         list_of_files.append(read_in_file)
 
-    final_file: pd.DataFrame = pd.concat(list_of_files, ignore_index=True).drop(
-        columns="step"
+    final_file = pd.concat(list_of_files, ignore_index=True)
+    return (
+        final_file.melt(id_vars=["epoch", "experiment"])
+        .dropna(subset="value")
+        .query("variable!='step'")
     )
-    return final_file
 
 
-def plot_experiment_results(df: pd.DataFrame, save=True):
+def plot_experiment_results(
+    df: pd.DataFrame, save: Optional[bool] = True
+) -> Union[plt.Figure, None]:
     """
-    Plot experiment results using Plotnine.
+    Plot experiment results using line plots for each variable.
 
-    Args:
-        df (pd.DataFrame): The DataFrame containing experiment results.
-        save: Option to save the plot as svg
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing experiment results.
+    - save (bool, optional): Whether to save the generated plot. Defaults to True.
 
     Returns:
-        Optional[ggplot]: A Plotnine ggplot object representing the experiment results.
-        Returns None if the input DataFrame is empty.
+    - Union[plt.Figure, None]: The matplotlib Figure object if the plot is created,
+      or None if the DataFrame is empty.
 
     Example:
-        >>> results_df = get_experiment_results()
-        >>> if results_df is not None:
-        >>>     plot = plot_experiment_results(results_df)
-        >>>     if plot is not None:
-        >>>         print(plot)
+    ```python
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    # Assuming df is your DataFrame with columns 'variable', 'epoch', 'value', and 'experiment'
+    # For example, you can create a DataFrame using:
+    # df = pd.DataFrame({'variable': ['A', 'A', 'B', 'B'],
+    #                    'epoch': [1, 2, 1, 2],
+    #                    'value': [10, 12, 8, 15],
+    #                    'experiment': ['Exp1', 'Exp1', 'Exp2', 'Exp2']})
+
+    plot_experiment_results(df, save=True)
+    ```
+    This will create line plots for each variable, with separate lines for each experiment,
+    and save the plot as 'experiment_result.png' in the current working directory.
     """
     if df.empty:
         print("DataFrame is empty. Cannot create the plot.")
         return None
 
-    plot = (
-        df.pipe(lambda df: pd.melt(df, id_vars=["epoch", "experiment"]))
-        .replace({"val_f1": "F1", "val_acc": "Accuracy", "val_loss": "Loss"})
-        .pipe(
-            lambda df: ggplot(df, aes("epoch", "value", color="experiment"))
-            + geom_line(
-                size=1,
-                tooltips=layer_tooltips()
-                .anchor("top_right")
-                .line("^color")
-                .line("Value|^y"),
-            )
-            + facet_grid(x="variable", scales="free_y")
-            + labs(title="Validation Accuracy, F1 and Loss values")
-            + theme(plot_title=element_text(size=20, face="bold"))
-            # + ggsize(1000,500)
-        )
-    )
-    if save:
-        ggsave(plot, "experiment_result.svg", path=".", iframe=False)
+    num_variables = len(df["variable"].unique())
+    num_rows = min(2, num_variables)
+    num_cols = min(5, (num_variables + 1) // 2)
 
-    return plot
+    fig, axs = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(18, 8))
+    axs = axs.flatten()
+    unique_variables = sorted(df["variable"].unique().tolist())
+
+    handles, labels = [], []
+
+    for idx, metric in enumerate(unique_variables):
+        temp_df = df.query("variable == @metric")
+
+        line_plot = sns.lineplot(
+            data=temp_df,
+            x="epoch",
+            y="value",
+            hue="experiment",
+            style="experiment",
+            markers=True,
+            dashes=True,
+            ax=axs[idx],
+        ).set(title=f'{metric.replace("_", " ").title()}')
+
+        # Collect handles and labels only from the first subplot
+        if idx == 0:
+            handles, labels = axs[idx].get_legend_handles_labels()
+
+        # Hide the legend in each subplot
+        axs[idx].legend().set_visible(False)
+
+    # Create a single legend outside the subplots
+    fig.legend(handles, labels, loc="upper right", bbox_to_anchor=(1.2, 0.97))
+    plt.tight_layout()
+
+    if save:
+        fig.savefig("experiment_result.png", dpi=300, bbox_inches="tight")
+
+    plt.close(fig)  # Close the figure to prevent double display
+
+    return fig

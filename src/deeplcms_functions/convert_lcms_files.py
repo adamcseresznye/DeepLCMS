@@ -488,11 +488,12 @@ def augment_images(
     xoffs: int = 5,
     yoffs: int = 5,
     n: int = 10,
-    save: bool = False,
+    save: bool = True,
     seed: int = utils.Configuration.seed,
 ) -> None:
     """
-    Apply random offsets to an image.
+    Apply random offsets to an image and save them in the same
+    location.
 
     Parameters:
     - location (str): Path to the input image.
@@ -551,7 +552,59 @@ def augment_images(
                     / f"{location.stem}_xoffset{x_offset}_yoffset{y_offset}.jpeg"
                 )
 
-                print(f"Augmented image saved: {save_path}")
+                # print(f"Augmented image saved: {save_path}")
+
                 offset_image.save(save_path)
 
         return None
+
+
+def validate_folder_structure(
+    df: pd.DataFrame, parent_folder_to_validate: Path
+) -> None:
+    """
+    Validate the folder structure consistency with DataFrame information.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame containing information about the samples.
+    - parent_folder_to_validate (Path): Parent folder to validate the structure against.
+
+    Raises:
+    - AssertionError: If the folder structure does not match the information in the DataFrame.
+
+    Example:
+    ```python
+    df = pd.DataFrame({
+        'sample_name': ['sample1', 'sample2'],
+        'split': ['train', 'test'],
+        'phenotype': ['class1', 'class2'],
+        # Add other relevant columns as needed
+    })
+
+    parent_folder = Path('/path/to/parent/folder')
+
+    # Assuming the DataFrame and folder structure are consistent
+    validate_folder_structure(df, parent_folder)
+    ```
+    """
+    for index, row in df.iterrows():
+        # file_path = list(parent_folder_to_validate.glob(f"*/*/{row.sample_name}.jpeg")[0])
+        file_path = list(parent_folder_to_validate.glob(f"*/*/{row.sample_name}.jpeg"))[
+            0
+        ]
+
+        # Extract components from the actual file path
+        folder_found = file_path.parents[1].name
+        subfolder_found = file_path.parents[0].name
+        filename_found = file_path.stem
+
+        # Validate the folder structure against DataFrame information
+        assert (
+            row["split"] == folder_found
+            and row["phenotype"] == subfolder_found
+            and row["sample_name"] == filename_found
+        ), f"Validation failed for {file_path}. Folder structure does not match DataFrame information."
+
+    print(
+        "Validation Passed: Folder structure is consistent with DataFrame information."
+    )

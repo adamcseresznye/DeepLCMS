@@ -11,7 +11,12 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer.trainer import Trainer
 from timm import create_model
 from torchmetrics import Accuracy
-from torchmetrics.classification import BinaryF1Score
+from torchmetrics.classification import (
+    BinaryAUROC,
+    BinaryF1Score,
+    BinaryPrecision,
+    BinaryRecall,
+)
 
 
 class MetricsCallback(Callback):
@@ -83,7 +88,7 @@ class PretrainedModelEvaluator(pl.LightningModule):
 
         # Adjust the last layer dynamically
         last_layer_input_size = last_linear_layer.in_features
-        self.model.classifier = torch.nn.Sequential(
+        self.model.fc = torch.nn.Sequential(
             torch.nn.Linear(
                 in_features=last_layer_input_size,
                 out_features=int(last_layer_input_size / 4),
@@ -140,19 +145,7 @@ class PretrainedModelEvaluator(pl.LightningModule):
         x = self.model(x)
         return x
 
-    def training_step(
-        self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        """
-        Training step for PyTorch Lightning.
-
-        Args:
-            batch (Tuple[torch.Tensor, torch.Tensor]): Input and target tensors.
-            batch_idx (int): Index of the batch.
-
-        Returns:
-            torch.Tensor: Training loss.
-        """
+    def training_step(self, batch, batch_idx):
         x, y = batch
 
         loss_fn = nn.BCELoss()
@@ -161,30 +154,50 @@ class PretrainedModelEvaluator(pl.LightningModule):
         y_pred = torch.sigmoid(y_pred_logits)
         loss = loss_fn(y_pred, y.float())
 
+        self.log(
+            "train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
+
         # Calculate metrics
+
+        # Calculate Accuracy
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
-
+        self.log(
+            "train_acc", acc, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
+        # Calculate F1
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
-
-        # Append metrics to the corresponding attribute
-        self.train_loss.append(loss.item())
-        self.train_acc.append(acc)
-        self.train_f1.append(f1.item())
+        self.log(
+            "train_f1", f1, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
+        # Calculate Precision
+        metric_precision = BinaryPrecision().to(y.device)
+        precision = metric_precision(y_pred_class, y)
+        self.log(
+            "train_precision",
+            precision,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        # Calculate Recall
+        metric_f1 = BinaryRecall().to(y.device)
+        recall = metric_f1(y_pred_class, y)
+        self.log(
+            "train_recall",
+            recall,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
 
         return loss
 
-    def validation_step(
-        self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> None:
-        """
-        Validation step for PyTorch Lightning.
-
-        Args:
-            batch (Tuple[torch.Tensor, torch.Tensor]): Input and target tensors.
-            batch_idx (int): Index of the batch.
-        """
+    def validation_step(self, batch, batch_idx):
         x, y = batch
 
         loss_fn = nn.BCELoss()
@@ -197,19 +210,39 @@ class PretrainedModelEvaluator(pl.LightningModule):
         )
 
         # Calculate metrics
+
+        # Calculate Accuracy
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
         self.log(
             "val_acc", acc, on_step=False, on_epoch=True, prog_bar=True, logger=True
         )
-
+        # Calculate F1
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
         self.log("val_f1", f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-
-        self.val_loss.append(loss.item())
-        self.val_acc.append(acc)
-        self.val_f1.append(f1.item())
+        # Calculate Precision
+        metric_precision = BinaryPrecision().to(y.device)
+        precision = metric_precision(y_pred_class, y)
+        self.log(
+            "val_precision",
+            precision,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        # Calculate Recall
+        metric_f1 = BinaryRecall().to(y.device)
+        recall = metric_f1(y_pred_class, y)
+        self.log(
+            "val_recall",
+            recall,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
 
     def configure_optimizers(self):
         """
@@ -224,7 +257,7 @@ class PretrainedModelEvaluator(pl.LightningModule):
             weight_decay=2e-5,
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=20, eta_min=0
+            optimizer, T_max=50, eta_min=0
         )
         return [optimizer], [scheduler]
 

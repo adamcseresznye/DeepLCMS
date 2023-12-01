@@ -47,5 +47,5 @@ repos:
 #      #additional_dependencies: [jupytext]  # optional, only if you're using Jupytext
 #    - id: nbqa-pyupgrade
 #      args: ["--py37-plus"]
-    - id: nbqa-isort
-      args: ["--float-to-top"]
+#    - id: nbqa-isort
+#      args: ["--float-to-top"]
