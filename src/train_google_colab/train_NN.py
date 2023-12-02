@@ -296,10 +296,10 @@ def show_architecture(model: nn.Module):
     )
 
 
-class LitModel(pl.LightningModule):
+class Resnet_model(pl.LightningModule):
     def __init__(self):
         super().__init__()
-        self.model = create_model("resnet14t.c3_in1k", pretrained=True, num_classes=1)
+        self.model = create_model("resnet50d.a3_in1k", pretrained=True, num_classes=1)
 
         # Freeze all layers except for the last one
         for param in self.model.parameters():
@@ -326,16 +326,47 @@ class LitModel(pl.LightningModule):
         y_pred_logits = self(x).squeeze()
         y_pred = torch.sigmoid(y_pred_logits)
         loss = loss_fn(y_pred, y.float())
-        self.log("train_loss", loss)
+
+        self.log(
+            "train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
 
         # Calculate metrics
+
+        # Calculate Accuracy
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
-        self.log("train_acc", acc)
-
+        self.log(
+            "train_acc", acc, on_step=False, on_epoch=True, prog_bar=False, logger=True
+        )
+        # Calculate F1
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
-        self.log("train_f1", f1)
+        self.log(
+            "train_f1", f1, on_step=False, on_epoch=True, prog_bar=False, logger=True
+        )
+        # Calculate Precision
+        metric_precision = BinaryPrecision().to(y.device)
+        precision = metric_precision(y_pred_class, y)
+        self.log(
+            "train_precision",
+            precision,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            logger=True,
+        )
+        # Calculate Recall
+        metric_f1 = BinaryRecall().to(y.device)
+        recall = metric_f1(y_pred_class, y)
+        self.log(
+            "train_recall",
+            recall,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            logger=True,
+        )
 
         return loss
 
@@ -347,16 +378,45 @@ class LitModel(pl.LightningModule):
         y_pred_logits = self(x).squeeze()
         y_pred = torch.sigmoid(y_pred_logits)
         loss = loss_fn(y_pred, y.float())
-        self.log("val_loss", loss)
+        self.log(
+            "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
 
         # Calculate metrics
+
+        # Calculate Accuracy
         y_pred_class = torch.round(y_pred)
         acc = (y_pred_class == y).sum().item() / len(y_pred)
-        self.log("val_acc", acc)
-
+        self.log(
+            "val_acc", acc, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
+        # Calculate F1
         metric_f1 = BinaryF1Score().to(y.device)
         f1 = metric_f1(y_pred_class, y)
-        self.log("val_f1", f1)
+        self.log("val_f1", f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        # Calculate Precision
+        metric_precision = BinaryPrecision().to(y.device)
+        precision = metric_precision(y_pred_class, y)
+        self.log(
+            "val_precision",
+            precision,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        # Calculate Recall
+        metric_f1 = BinaryRecall().to(y.device)
+        recall = metric_f1(y_pred_class, y)
+        self.log(
+            "val_recall",
+            recall,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         if isinstance(batch, list):
