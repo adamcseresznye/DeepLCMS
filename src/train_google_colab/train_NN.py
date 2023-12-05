@@ -308,7 +308,7 @@ class Resnet_model(pl.LightningModule):
         self.model.fc = torch.nn.Sequential(
             torch.nn.Linear(in_features=2048, out_features=512, bias=True),
             torch.nn.ReLU(),
-            torch.nn.Dropout(p=0.3),
+            torch.nn.Dropout(p=0.257247),
             torch.nn.Linear(in_features=512, out_features=256, bias=True),
             torch.nn.ReLU(),
             torch.nn.Linear(in_features=256, out_features=1, bias=True),
@@ -431,10 +431,10 @@ class Resnet_model(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(),
-            lr=0.001,
+            lr=0.002731,
             weight_decay=2e-5,
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=20, eta_min=0
+            optimizer, T_max=50, eta_min=0
         )
         return [optimizer], [scheduler]
