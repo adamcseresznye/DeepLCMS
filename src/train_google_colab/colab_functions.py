@@ -5,11 +5,18 @@ from typing import List, Optional, Tuple, Union
 
 import colab_utils
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
+import torch.utils.data
+import torchmetrics
 import torchvision
 from PIL import Image
+from torchcam.methods import LayerCAM
+from torchcam.utils import overlay_mask
+from torchvision.io.image import read_image
+from torchvision.transforms.functional import to_pil_image
 
 
 def open_random_image(
@@ -266,3 +273,188 @@ def plot_experiment_results(
     plt.close(fig)  # Close the figure to prevent double display
 
     return fig
+
+
+def inspect_predictions(
+    logits: list, test_dataloader: torch.utils.data.DataLoader, save: bool = True
+) -> None:
+    """
+    Inspect model predictions by displaying a 3x3 grid of images with predicted labels.
+
+    Parameters:
+    - logits (list): List of tensors containing model logits for each sample.
+    - test_dataloader (torch.utils.data.DataLoader): DataLoader for the test dataset.
+    - save (bool, optional): If True, save the prediction matrix plot. Defaults to True.
+
+    Returns:
+    - None
+
+    Example:
+    ```python
+    # Assuming you have a test_dataloader and logits_list defined
+    inspect_predictions(logits_list, test_dataloader, save=True)
+    ```
+    The title color in each subplot indicates the accuracy of the prediction:
+    - Green: Prediction matches the actual label.
+    - Red: Prediction does not match the actual label.
+    """
+
+    images, labels = next(iter(test_dataloader))
+
+    first_batch_of_logits = logits[: test_dataloader.batch_size]
+    probabilities = torch.sigmoid(torch.cat(first_batch_of_logits, dim=0)).squeeze()
+
+    threshold = 0.5
+    predicted_labels = (probabilities > threshold).float().view(-1)
+
+    # Create a 3x3 grid for displaying images
+    fig = plt.figure(figsize=(12, 12))
+    rows, cols = 3, 3
+
+    for i in range(1, rows * cols + 1):
+        fig.add_subplot(rows, cols, i)
+
+        # Choose a random index
+        random_index = np.random.randint(0, probabilities.shape[0] - 1)
+        title = f"Predicted: {probabilities[random_index].item():.2%} proba of class 1 | True: {int(labels[random_index])}"
+        color = (
+            "g"
+            if round(probabilities[random_index].item()) == int(labels[random_index])
+            else "r"
+        )
+        plt.title(title, fontsize=8, color=color, weight="bold")
+        plt.imshow(images[random_index].permute(1, 2, 0))
+
+        plt.axis(False)
+
+    if save:
+        plt.savefig("prediction_matrix.png", bbox_inches="tight", dpi=300)
+
+
+def evaluate_predictions(
+    logits: list,
+    test_dataloader: torch.utils.data.DataLoader,
+    binary: bool = True,
+    save: bool = True,
+) -> None:
+    """
+    Evaluate predictions using binary or multiclass classification metrics.
+
+    Parameters:
+    - logits (list): List of tensors containing model logits for each sample.
+    - test_dataloader (torch.utils.data.DataLoader): DataLoader for the test dataset.
+    - binary (bool, optional): If True, perform binary classification. Defaults to True.
+    - save (bool, optional): If True, save the BinaryConfusionMatrix plot. Defaults to True.
+
+    Returns:
+    - None
+
+    Example:
+    ```python
+    # Assuming you have a test_dataloader and logits_list defined
+    evaluate_predictions(logits_list, test_dataloader, binary=True, save=True)
+    ```
+    """
+
+    true_labels = torch.tensor(test_dataloader.dataset.targets)
+    if binary:
+        probabilities = torch.sigmoid((torch.cat(logits, dim=0)))
+        # Threshold probabilities to get binary predictions (0 or 1)
+        threshold = 0.5
+        predicted_labels = (probabilities > threshold).float().view(-1)
+    else:
+        # in case of multiclass problems
+        probabilities = torch.softmax(logits, dim=1)
+        predicted_labels = probabilities.argmax(dim=1)
+
+    acc = (true_labels == predicted_labels).sum().item() / len(true_labels)
+
+    metric_f1 = torchmetrics.classification.BinaryF1Score()
+    f1 = metric_f1(true_labels, predicted_labels)
+
+    metric_precision = torchmetrics.classification.BinaryPrecision()
+    precision = metric_precision(true_labels, predicted_labels)
+
+    metric_recall = torchmetrics.classification.BinaryRecall()
+    recall = metric_recall(true_labels, predicted_labels)
+
+    bcm = torchmetrics.classification.BinaryConfusionMatrix()
+    bcm(true_labels, predicted_labels)
+
+    print(
+        f"Accuracy: {acc:.2f} | F1: {f1:.2f} | Precision: {precision:.2f} | Recall: {recall:.2f}"
+    )
+    fig_, ax_ = bcm.plot(add_text=True)
+
+    if save:
+        plt.savefig("BinaryConfusionMatrix.png", bbox_inches="tight", dpi=300)
+
+
+def plot_activation(
+    dataloader: torch.utils.data.DataLoader,
+    device: str,
+    model: torch.nn.Module,
+    save: bool = True,
+) -> None:
+    """
+    Generate a 3x3 grid of images with Class Activation Maps (CAM) and optionally save the plot.
+
+    Parameters:
+    - dataloader (Any): The DataLoader containing the images and labels.
+    - device (Any): The device on which the model should run (e.g., 'cuda' or 'cpu').
+    - model (Any): The neural network model.
+    - save (bool, optional): Whether to save the plot as 'plot_activation.png'. Default is True.
+
+    Example:
+    ```python
+    from torchvision import models, transforms
+    from torch.utils.data import DataLoader
+    from your_dataset_module import YourDataset  # Replace 'your_dataset_module' with the actual module name
+
+    # Assuming you have a DataLoader named 'your_dataloader' and a device 'cuda'
+    your_dataloader = DataLoader(YourDataset(...), batch_size=32, shuffle=True)
+    your_model = models.resnet50(pretrained=True)
+    your_model.to('cuda')
+
+    plot_activation(your_dataloader, 'cuda', your_model, save=True)
+    ```
+    """
+    for param in model.parameters():
+        param.requires_grad = True
+
+    images, labels = next(iter(dataloader))
+    images, labels = images.to(device), labels.to(device)
+
+    # Create a 3x3 grid for displaying images
+    fig = plt.figure(figsize=(12, 12))
+    rows, cols = 3, 3
+
+    for i in range(1, rows * cols + 1):
+        fig.add_subplot(rows, cols, i)
+
+        # Choose a random index
+        random_index = np.random.randint(0, len(dataloader.dataset) - 1)
+
+        # Retrieve the CAM from several layers at the same time
+        cam_extractor = LayerCAM(
+            model, ["model.layer2", "model.layer3", "model.layer4"]
+        )
+
+        # Preprocess your data and feed it to the model
+        out = model(images[random_index].unsqueeze(0))
+        # Retrieve the CAM by passing the class index and the model output
+        cams = cam_extractor(out.squeeze(0).argmax().item(), out)
+
+        result = overlay_mask(
+            to_pil_image(images[random_index]), to_pil_image(cams, mode="F"), alpha=0.5
+        )
+        plt.imshow(result)
+        plt.title(f"Class: {labels[random_index]}")
+        plt.axis(False)
+
+        cam_extractor.remove_hooks()
+
+    if save:
+        plt.savefig("plot_activation.png", bbox_inches="tight", dpi=300)
+
+    plt.show()  # Display the plot

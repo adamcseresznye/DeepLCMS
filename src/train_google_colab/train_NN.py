@@ -6,9 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchinfo
-from pytorch_lightning import LightningModule
-from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch.callbacks import Callback
 from timm import create_model
 from torchmetrics import Accuracy
 from torchmetrics.classification import (
@@ -49,7 +48,7 @@ class MetricsCallback(Callback):
         self.metrics.append(trainer.logged_metrics)
 
 
-class PretrainedModelEvaluator(pl.LightningModule):
+class PretrainedModelEvaluator(LightningModule):
     """
     A PyTorch Lightning module for evaluating the performance of pretrained models.
 
@@ -296,7 +295,7 @@ def show_architecture(model: nn.Module):
     )
 
 
-class Resnet_model(pl.LightningModule):
+class Resnet_model(LightningModule):
     def __init__(self):
         super().__init__()
         self.model = create_model("resnet50d.a3_in1k", pretrained=True, num_classes=1)
