@@ -1,142 +1,178 @@
 import os
-import random
 from pathlib import Path
+from typing import Any, Tuple
 
+import colab_functions
 import colab_utils
 import matplotlib.pyplot as plt
-import numpy as np
+import prepare_data
 import timm
 import torch
+import torchmetrics
 import torchvision
-from timm.data import create_transform, resolve_data_config
-from torchvision.transforms import Compose, RandomRotation
+from lightning.pytorch import LightningDataModule
 
 
-def get_timm_transforms(
-    model,
-    preprocess_train: Compose = None,
-    color_jitter: float = 0.05,
-    re_prob: float = 0.05,
-) -> tuple[Compose, Compose, Compose]:
-    """
-    Get preprocessing transforms for training, testing, and validation based on
-    the data configuration of the model.
+class LCMSDataModule(LightningDataModule):
+    def __init__(
+        self,
+        model: Any,
+        data_dir: Path = colab_utils.Configuration.img_path,
+        batch_size: int = colab_utils.Configuration.batch_size,
+        color_jitter: float = 0.2,
+        re_prob: float = 0.2,
+    ) -> None:
+        """
+        LightningDataModule for handling LCMS (Liquid Chromatography-Mass Spectrometry) data.
 
-    Args:
-        model: The timm model.
-        preprocess_train (Compose, optional): Optional existing training transforms.
-        color_jitter (float): Intensity of color jittering. Default is 0.05.
-        re_prob (float): Probability of applying random erasing. Default is 0.05.
-
-    Returns:
-        Tuple[Compose, Compose, Compose]: A tuple containing the preprocessing transforms
-        for training, validation, and testing.
-    """
-    # Resolve data configuration for the model
-    data_cfg = resolve_data_config(model.model.default_cfg)
-
-    if preprocess_train is None:
-        # Create a list of transforms
-        preprocess_train = create_transform(
-            input_size=data_cfg["input_size"],
-            is_training=True,
-            color_jitter=color_jitter,
-            hflip=0,
-            vflip=0,
-            scale=(1.0, 1.0),  # Remove random zoom effect
-            mean=data_cfg["mean"],
-            std=data_cfg["std"],
-            re_prob=re_prob,
-        )
-        # Add the RandomRotation transform to the list of transforms
-        preprocess_train.transforms.insert(0, RandomRotation(1))
-
-    # Create the transform object for testing
-    preprocess_test = create_transform(
-        **data_cfg,
-        is_training=False,
-    )
-
-    # Create the transform object for validation
-    preprocess_val = create_transform(
-        **data_cfg,
-        is_training=False,
-    )
-    return preprocess_train, preprocess_val, preprocess_test
-
-
-def get_dataloaders(
-    train_dir: str = colab_utils.Configuration.train_dir,
-    val_dir: str = colab_utils.Configuration.val_dir,
-    test_dir: str = colab_utils.Configuration.test_dir,
-    batch_size: int = colab_utils.Configuration.batch_size,
-    preprocess_train: torchvision.transforms.Compose = None,
-    preprocess_val: torchvision.transforms.Compose = None,
-    preprocess_test: torchvision.transforms.Compose = None,
-) -> tuple:
-    """
-        Get dataloaders for training, validation, and testing.
-    s
         Args:
-            train_dir (str): Path to the training data directory.
-            val_dir (str): Path to the validation data directory.
-            test_dir (str): Path to the test data directory.
-            batch_size (int): Number of samples per batch.
-            preprocess_train (torchvision.transforms.Compose): Preprocessing
-            transforms for training data.
-            preprocess_val (torchvision.transforms.Compose): Preprocessing
-            transforms for validation data.
-            preprocess_test (torchvision.transforms.Compose): Preprocessing
-            transforms for test data.
+            model (Any): The model to be used with the data.
+            data_dir (str): Root directory for all data. Defaults to colab_utils.Configuration.img_path.
+            batch_size (int): Size of each batch. Defaults to colab_utils.Configuration.batch_size.
+            color_jitter (float): Intensity of color jitter transformation. Defaults to 0.2.
+            re_prob (float): Probability of applying random erasing transformation. Defaults to 0.2.
+        """
+        super().__init__()
+        self.model = model
+        self.data_dir = data_dir
+        self.train_dir = data_dir / "train"
+        self.val_dir = data_dir / "val"
+        self.test_dir = data_dir / "test"
+        self.batch_size = batch_size
+        self.color_jitter = color_jitter
+        self.re_prob = re_prob
+
+    def setup(self, stage: str) -> None:
+        """
+        Setup method to be called before training, validation, and testing.
+        This method is empty in this implementation.
+        """
+        pass
+
+    def get_timm_transforms(self) -> Tuple[Any, Any, Any]:
+        """
+        Get torchvision and timm transforms for training, validation, and testing.
 
         Returns:
-            tuple: A tuple containing the training, validation, and test dataloaders.
-    """
-    NUM_WORKERS = os.cpu_count()
+            Tuple of torchvision and timm transforms for training, validation, and testing.
+        """
+        # Resolve data configuration for the model
+        data_cfg = timm.data.resolve_data_config(self.model.model.default_cfg)
 
-    train_data = torchvision.datasets.ImageFolder(
-        root=train_dir,
-        transform=preprocess_train,
-        target_transform=None,
-    )
+        preprocess_train = torchvision.transforms.Compose(
+            [
+                torchvision.transforms.RandomRotation(10),
+                timm.data.create_transform(
+                    input_size=data_cfg["input_size"],
+                    is_training=True,
+                    color_jitter=self.color_jitter,
+                    hflip=0,
+                    vflip=0,
+                    scale=(1.0, 1.0),  # Remove random zoom effect
+                    mean=data_cfg["mean"],
+                    std=data_cfg["std"],
+                    re_prob=self.re_prob,
+                ),
+            ]
+        )
 
-    val_data = torchvision.datasets.ImageFolder(
-        root=val_dir,
-        transform=preprocess_val,
-        target_transform=None,
-    )
+        preprocess_test = timm.data.create_transform(
+            **data_cfg,
+            is_training=False,
+        )
 
-    test_data = torchvision.datasets.ImageFolder(
-        root=test_dir,
-        transform=preprocess_test,
-        target_transform=None,
-    )
+        preprocess_val = timm.data.create_transform(
+            **data_cfg,
+            is_training=False,
+        )
 
-    train_dataloader = torch.utils.data.DataLoader(
-        train_data,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
-    )
+        return preprocess_train, preprocess_val, preprocess_test
 
-    val_dataloader = torch.utils.data.DataLoader(
-        val_data,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
-    )
+    def create_imagefolders(self) -> Tuple[Any, Any, Any]:
+        """
+        Create ImageFolder datasets for training, validation, and testing.
 
-    test_dataloader = torch.utils.data.DataLoader(
-        test_data,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
-    )
+        Returns:
+            Tuple of ImageFolder datasets for training, validation, and testing.
+        """
+        preprocess_train, preprocess_val, preprocess_test = self.get_timm_transforms()
 
-    return train_dataloader, val_dataloader, test_dataloader
+        train_data = torchvision.datasets.ImageFolder(
+            root=self.train_dir,
+            transform=preprocess_train,
+            target_transform=None,
+        )
+
+        val_data = torchvision.datasets.ImageFolder(
+            root=self.val_dir,
+            transform=preprocess_val,
+            target_transform=None,
+        )
+
+        test_data = torchvision.datasets.ImageFolder(
+            root=self.test_dir,
+            transform=preprocess_test,
+            target_transform=None,
+        )
+
+        return train_data, val_data, test_data
+
+    def train_dataloader(self) -> torch.utils.data.DataLoader:
+        """
+        Create DataLoader for training data.
+
+        Returns:
+            DataLoader for training data.
+        """
+        train_data, _, _ = self.create_imagefolders()
+        num_workers = os.cpu_count()
+
+        train_dataloader = torch.utils.data.DataLoader(
+            train_data,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+        return train_dataloader
+
+    def val_dataloader(self) -> torch.utils.data.DataLoader:
+        """
+        Create DataLoader for validation data.
+
+        Returns:
+            DataLoader for validation data.
+        """
+        _, val_data, _ = self.create_imagefolders()
+        num_workers = os.cpu_count()
+
+        val_dataloader = torch.utils.data.DataLoader(
+            val_data,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+        return val_dataloader
+
+    def test_dataloader(self) -> torch.utils.data.DataLoader:
+        """
+        Create DataLoader for test data.
+
+        Returns:
+            DataLoader for test data.
+        """
+        _, _, test_data = self.create_imagefolders()
+        num_workers = os.cpu_count()
+
+        test_dataloader = torch.utils.data.DataLoader(
+            test_data,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+        return test_dataloader
 
 
 def inspect_dataloader(
@@ -159,4 +195,4 @@ def inspect_dataloader(
     plt.tight_layout()
 
     if save:
-        img.savefig("transformed_grid.png", dpi=300)
+        plt.savefig("transformed_grid.png", bbox_inches="tight", pad_inches=0, dpi=300)
