@@ -101,6 +101,7 @@ class PretrainedModel(LightningModule):
     def log_metrics(
         self,
         prefix: str,
+        loss: torch.Tensor,
         accuracy: torch.Tensor,
         f1: torch.Tensor,
         precision: torch.Tensor,
@@ -119,6 +120,7 @@ class PretrainedModel(LightningModule):
         """
         self.log_dict(
             {
+                f"{prefix}_loss": loss,
                 f"{prefix}_accuracy": accuracy,
                 f"{prefix}_f1": f1,
                 f"{prefix}_precision": precision,
@@ -149,7 +151,7 @@ class PretrainedModel(LightningModule):
         precision = self.precision(y_pred_logits, y)
         recall = self.recall(y_pred_logits, y)
 
-        self.log_metrics("train", accuracy, f1, precision, recall)
+        self.log_metrics("train", loss, accuracy, f1, precision, recall)
         return loss
 
     def validation_step(
@@ -172,7 +174,7 @@ class PretrainedModel(LightningModule):
         precision = self.precision(y_pred_logits, y)
         recall = self.recall(y_pred_logits, y)
 
-        self.log_metrics("val", accuracy, f1, precision, recall)
+        self.log_metrics("val", loss, accuracy, f1, precision, recall)
         return loss
 
     def predict_step(
@@ -218,21 +220,20 @@ class PretrainedModel(LightningModule):
         )
         return [optimizer], [scheduler]
 
+    def show_architecture(self):
+        """
+        Display a summary of the model architecture using torchinfo.
 
-def show_architecture(model: torch.nn.Module):
-    """
-    Display a summary of the model architecture using torchinfo.
+        Args:
+            model (nn.Module): The PyTorch model.
 
-    Args:
-        model (nn.Module): The PyTorch model.
-
-    Returns:
-        str: A summary of the model architecture.
-    """
-    return torchinfo.summary(
-        model=model,
-        input_size=(32, 3, 384, 384),
-        col_names=["input_size", "output_size", "num_params", "trainable"],
-        col_width=20,
-        row_settings=["var_names"],
-    )
+        Returns:
+            str: A summary of the model architecture.
+        """
+        return torchinfo.summary(
+            model=self.model,
+            input_size=(32, 3, 384, 384),
+            col_names=["input_size", "output_size", "num_params", "trainable"],
+            col_width=20,
+            row_settings=["var_names"],
+        )

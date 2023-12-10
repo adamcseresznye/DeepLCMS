@@ -198,7 +198,7 @@ def get_experiment_results() -> pd.DataFrame:
 
 
 def plot_experiment_results(
-    df: pd.DataFrame, save: Optional[bool] = True
+    df: pd.DataFrame, save: Optional[bool] = True, bbox_to_anchor=(1.1, 0.97)
 ) -> Union[plt.Figure, None]:
     """
     Plot experiment results using line plots for each variable.
@@ -264,7 +264,7 @@ def plot_experiment_results(
         axs[idx].legend().set_visible(False)
 
     # Create a single legend outside the subplots
-    fig.legend(handles, labels, loc="upper right", bbox_to_anchor=(1.2, 0.97))
+    fig.legend(handles, labels, loc="upper right", bbox_to_anchor=bbox_to_anchor)
     plt.tight_layout()
 
     if save:

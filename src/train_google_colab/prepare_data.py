@@ -19,8 +19,8 @@ class LCMSDataModule(LightningDataModule):
         model: Any,
         data_dir: Path = colab_utils.Configuration.img_path,
         batch_size: int = colab_utils.Configuration.batch_size,
-        color_jitter: float = 0.2,
-        re_prob: float = 0.2,
+        color_jitter: float = 0.05,
+        re_prob: float = 0.05,
     ) -> None:
         """
         LightningDataModule for handling LCMS (Liquid Chromatography-Mass Spectrometry) data.
@@ -34,7 +34,7 @@ class LCMSDataModule(LightningDataModule):
         """
         super().__init__()
         self.model = model
-        self.data_dir = data_dir
+        self.data_dir = Path(data_dir).resolve()
         self.train_dir = data_dir / "train"
         self.val_dir = data_dir / "val"
         self.test_dir = data_dir / "test"
@@ -61,7 +61,7 @@ class LCMSDataModule(LightningDataModule):
 
         preprocess_train = torchvision.transforms.Compose(
             [
-                torchvision.transforms.RandomRotation(10),
+                torchvision.transforms.RandomRotation(5),
                 timm.data.create_transform(
                     input_size=data_cfg["input_size"],
                     is_training=True,
@@ -174,25 +174,33 @@ class LCMSDataModule(LightningDataModule):
         )
         return test_dataloader
 
+    def inspect_dataloader(self, dataloader_type: str, save: bool = True) -> None:
+        """
+        Visualize a batch of images from a dataloader.
 
-def inspect_dataloader(
-    dataloader: torch.utils.data.DataLoader, save: bool = True
-) -> None:
-    """
-    Visualize a batch of images from a dataloader.
+        Args:
+            dataloader (DataLoader): The dataloader to visualize.
+            save (bool): If True, save the visualization as "transformed_grid.png". Default is True.
+        """
+        if dataloader_type == "train":
+            dataloader = self.train_dataloader()
 
-    Args:
-        dataloader (DataLoader): The dataloader to visualize.
-        save (bool): If True, save the visualization as "transformed_grid.png". Default is True.
-    """
-    images, labels = next(iter(dataloader))
-    grid = torchvision.utils.make_grid(images)
+        elif dataloader_type == "val":
+            dataloader = self.val_dataloader()
 
-    plt.figure(figsize=(15, 25))
+        else:
+            dataloader = self.test_dataloader()
 
-    img = plt.imshow(grid.permute(1, 2, 0)).figure
-    plt.axis("off")
-    plt.tight_layout()
+        images, labels = next(iter(dataloader))
+        grid = torchvision.utils.make_grid(images)
 
-    if save:
-        plt.savefig("transformed_grid.png", bbox_inches="tight", pad_inches=0, dpi=300)
+        plt.figure(figsize=(15, 25))
+
+        plt.imshow(grid.permute(1, 2, 0)).figure
+        plt.axis("off")
+        plt.tight_layout()
+
+        if save:
+            plt.savefig(
+                "transformed_grid.png", bbox_inches="tight", pad_inches=0, dpi=300
+            )
