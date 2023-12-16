@@ -210,7 +210,7 @@ class PretrainedModel(LightningModule):
             Tuple[List[Optimizer], List[_LRScheduler]]: Optimizers and schedulers.
 
         """
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.Adamax(
             self.parameters(),
             lr=self.learning_rate,
             weight_decay=2e-5,
