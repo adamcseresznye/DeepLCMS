@@ -13,7 +13,10 @@ from lightning.pytorch import LightningModule
 
 class PretrainedModel(LightningModule):
     def __init__(
-        self, pretrained_model_name: str, learning_rate: float, freeze: bool = True
+        self,
+        pretrained_model_name: str = colab_utils.Configuration.pretained_model_name,
+        learning_rate: float = colab_utils.Configuration.learning_rate,
+        freeze: bool = True,
     ):
         """
         LightningModule for fine-tuning a pretrained model on a binary classification task.
