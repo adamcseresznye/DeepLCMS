@@ -395,15 +395,18 @@ def plot_activation(
     device: str,
     model: torch.nn.Module,
     save: bool = True,
+    layers: list = None,
 ) -> None:
     """
     Generate a 3x3 grid of images with Class Activation Maps (CAM) and optionally save the plot.
 
     Parameters:
-    - dataloader (Any): The DataLoader containing the images and labels.
-    - device (Any): The device on which the model should run (e.g., 'cuda' or 'cpu').
-    - model (Any): The neural network model.
+    - dataloader (torch.utils.data.DataLoader): The DataLoader containing the images and labels.
+    - device (str): The device on which the model should run (e.g., 'cuda' or 'cpu').
+    - model (torch.nn.Module): The neural network model.
     - save (bool, optional): Whether to save the plot as 'plot_activation.png'. Default is True.
+    - layers (list, optional): List of layer names from which to extract CAMs. Default is None,
+      which extracts CAMs from the final layer.
 
     Example:
     ```python
@@ -416,7 +419,11 @@ def plot_activation(
     your_model = models.resnet50(pretrained=True)
     your_model.to('cuda')
 
+    # Extract CAMs from the final layer (default behavior)
     plot_activation(your_dataloader, 'cuda', your_model, save=True)
+
+    # Extract CAMs from specific layers
+    plot_activation(your_dataloader, 'cuda', your_model, save=True, layers=['layer1', 'layer2'])
     ```
     """
     for param in model.parameters():
@@ -424,6 +431,7 @@ def plot_activation(
 
     images, labels = next(iter(dataloader))
     images, labels = images.to(device), labels.to(device)
+    model = model.to(device)
 
     # Create a 3x3 grid for displaying images
     fig = plt.figure(figsize=(12, 12))
@@ -436,9 +444,7 @@ def plot_activation(
         random_index = np.random.randint(0, len(dataloader.dataset) - 1)
 
         # Retrieve the CAM from several layers at the same time
-        cam_extractor = LayerCAM(
-            model, ["model.layer2", "model.layer3", "model.layer4"]
-        )
+        cam_extractor = LayerCAM(model, layers)
 
         # Preprocess your data and feed it to the model
         out = model(images[random_index].unsqueeze(0))
@@ -446,7 +452,9 @@ def plot_activation(
         cams = cam_extractor(out.squeeze(0).argmax().item(), out)
 
         result = overlay_mask(
-            to_pil_image(images[random_index]), to_pil_image(cams, mode="F"), alpha=0.5
+            to_pil_image(images[random_index]),
+            to_pil_image(cams[0], mode="F"),
+            alpha=0.5,
         )
         plt.imshow(result)
         plt.title(f"Class: {labels[random_index]}")
