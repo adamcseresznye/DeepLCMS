@@ -1,0 +1,58 @@
+---
+title: 'DeepLCMS: Leveraging transfer learning for the classification of pseudo images in mass spectrometry-based analysis.'
+author: Adam Cseresznye
+date: '2023-19-12'
+categories:
+  - DeepLCMS
+jupyter: python3
+toc: true
+format:
+  html:
+    code-fold: true
+    code-tools: true
+---
+
+![Representative examples of DeepLCMS predictions accompanied by their corresponding probability estimates.](../data/experiment_results/exp-5-final_evaluation/prediction_matrix.png){fig-align="center" width=50%}
+
+Welcome to **DeepLCMS**! This project harnesses the power of deep learning to classify mass spectrometry-based pseudo images. The fully trained neural network empowers researchers to perform supervised classifications using a pretrained ResNeXt network. It also facilitates insights into the network's decision-making process via the TorchCam library, assisting researchers in narrowing down potential compound classes of interest based on retention time and molecular weight.
+
+# Introduction
+
+While computer vision has gained widespread adoption in various aspects of our lives[@dobson_birth_2023], its application in medical imaging and biosciences has lagged behind, primarily due to limitations in clinical dataset size, accessibility, privacy concerns, experimental complexity, and high acquisition costs. For such applications, transfer learning has emerged as a potential solution[@seddiki_towards_2020]. This technique is particularly effective with small datasets, requiring fewer computational resources while achieving good classification accuracy compared to models built from scratch. Transfer learning involves a two-step process. Initially, a robust data representation is learned by training a model on a dataset comprising a vast amount of annotated data encompassing numerous categories (ImageNet for example). This representation is then utilized to construct a new model based on a smaller annotated dataset containing fewer categories. The model can be trained either by exclusively training the final decision layer(s) or by further fine-tuning the entire model with the reduced category set.
+
+## Application of Pretrained Neural Networks for Mass Spectrometry Data
+
+The use of pre-trained neural networks for mass spectrometry data analysis is a relatively new field, with only a handful of publications available to date. These studies have demonstrated the potential of deep learning models to extract meaningful information from raw mass spectrometry data and perform predictive tasks without the need for protein quantification.
+
+## Previous Research
+
+In 2020, a study utilized MALDI-TOF images of rat brain samples to assess the ability of three different Convolutional Neural Networks (CNN) architectures – LeNet, Lecun, and VGG9 – to differentiate between different types of cancers based on their molecular profiles.
+
+In 2021, Cadow et al. explored the use of pre-trained networks for the classification of tumors from normal prostate biopsies derived from SWATH-MS data. They delved into the potential of deep learning models for analyzing raw mass spectrometry data and performing predictive tasks without the need for protein quantification. To process raw MS images, the authors employed pre-trained neural network models to convert them into numerical vectors, enabling further processing. They then compared several classifiers, including logistic regression, support vector machines, and random forests, to accurately predict the phenotype.
+
+In 2022, deepPseudoMSI, a deep learning-based pseudo-mass spectrometry imaging platform, was released to predict gestational age in pregnant women based on LC-MS-based metabolomics data. This application consists of two main components:
+Pseudo-MS Image Converter: This component converts LC-MS data into pseudo-images that can be processed by deep learning models. This process involves transforming mass spectrometry data into 2D images, where each pixel represents the intensity of a specific molecular feature
+::: {.callout-note}
+**DeepLCMS Project**
+
+* The DeepLCMS project aims to provide researchers with a reproducible source code for leveraging deep learning for mass spectrometry data analysis. It distinguishes itself from previous studies by:
+* Comparing Diverse Architecture Families: Employing a broader range of architecture families, including cutting-edge architectures like vision transformers.
+* Hyperparameter Tuning: Conducting basic hyperparameter tuning to optimize the learning rate, optimizer, and learning rate scheduler – crucial aspects beyond the architecture itself.
+* Image Quality Analysis: Investigating the impact of image quality on validation metrics, examining image sharpness and image augmentation techniques.
+* Regularization Techniques: Employing regularization techniques like random-tilting images and random erasing during training to improve model generalization.
+* Interpreting Pretrained Network Decisions: Analyzing how the pre-trained network makes its decisions using TorchVision.
+
+The DeepLCMS project aims to identify the most suitable architecture family from the timm library for a specific task and determine the optimal model size within that family based on validation metrics such as F1, precision, and recall throughout the training process. This approach aims to provide researchers with a valuable tool for harnessing the power of deep learning in mass spectrometry data analysis.`.
+:ysis.
+
+![Proposed conditions for evaluating selected image characteristics as hyperparameters.](../data/external/experimental_plan.jpg){#fig-1 fig-align="center" width=50%}
+
+# How to use the App
+
+1. Upload your CP-Seeker output files [here](https://cpseeker-postprocess.streamlit.app/).
+2. Optionally adjust the confidence level, which is set to 80% by default.
+3. Download the filtered and merged dataset.
+
+# Get in touch
+
+Did the app help with your research? Any ideas for making it better? Get in touch! I would love to hear from you.
