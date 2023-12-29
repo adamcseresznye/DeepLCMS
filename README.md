@@ -1,57 +1,22 @@
-DeepLCMS
+DeepLCMS: A framework that leverages transfer learning for the classification of pseudo images in mass spectrometry-based analysis
 ==============================
 
-NA
+DeepLCMS is an open-source project, freely available on GitHub, that aims to provide researchers with a reproducible code-template for leveraging deep learning for mass spectrometry data analysis.
 
-Project Organization
+In contrast to traditional methods that involve laborious steps like peak alignment, data annotation, and quantitation, DeepLCMS delivers results significantly faster by approaching LC/MS problems as a computer vision task. This novel approach uses a neuronal network to directly learn from the patterns inherent in the sample in an unbiased way without the need for manual intervention, accelerating the entire workflow.
+
+The study stands out from previous research by conducting a comprehensive evaluation of diverse architecture families, including cutting-edge architectures like vision transformers. Additionally, it employs basic hyperparameter tuning to optimize key parameters such as the optimizer and learning rate scheduler. Furthermore, it examines the impact of image pretreatment on validation metrics, exploring image sharpness and data augmentation techniques that mimic retention time shift. To enhance model generalization, this study takes advantage of regularization techniques like random-tilting images and random erasing during training. Finally, it also explores model interpretability by delving into the decision-making process of the pre-trained network, employing TorchVision for a comprehensive analysis.
+
+For more information visit [my website](https://adamcseresznye.github.io/blog/projects/DeepLCMS/DeepLCMS.html).
+
+Quick Overview of Project Organization
 ------------
 
-    ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
     ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
     │                         generated with `pip freeze > requirements.txt`
     │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
     ├── src                <- Source code for use in this project.
     │   ├── __init__.py    <- Makes src a Python module
     │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
-    │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
-
-
---------
-
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+    │   ├── deeplcms_functions  <- module to inspect metabolomicsworkbench database, convert and preprocess images (this module is mainly used with CPU)
+    │   ├── train_google_colab       <- module to train CNNs with corresponding notebooks. This folder can be uploaded, in zipped format, to Google Colab to take advantage the free GPU
