@@ -16,7 +16,7 @@ from scipy import ndimage
 from sklearn import model_selection
 from tqdm import tqdm
 
-from deeplcms_functions import utils
+from cpu_modules import utils
 
 
 def plot_2D_spectra_overview(
