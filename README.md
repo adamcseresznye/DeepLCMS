@@ -9,7 +9,7 @@ In contrast to traditional methods that involve laborious steps like peak alignm
 
 The study stands out from previous research by conducting a comprehensive evaluation of diverse architecture families, including cutting-edge architectures like vision transformers. Additionally, it employs basic hyperparameter tuning to optimize key parameters such as the optimizer and learning rate scheduler. Furthermore, it examines the impact of image pretreatment on validation metrics, exploring image sharpness and data augmentation techniques that mimic retention time shift. To enhance model generalization, this study takes advantage of regularization techniques like random-tilting images and random erasing during training. Finally, it also explores model interpretability by delving into the decision-making process of the pre-trained network, employing TorchVision for a comprehensive analysis.
 
-For more information visit [my website](https://adamcseresznye.github.io/blog/projects/DeepLCMS/DeepLCMS.html).
+For more information visit [my website](https://adamcseresznye.github.io/projects/DeepLCMS/DeepLCMS.html).
 
 Quick Overview of Project Organization
 ------------
